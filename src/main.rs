@@ -22,13 +22,21 @@ fn main() {
 
     loop {
         match interp.interpret() {
-            Ok(v) => println!("{}", v),
+            Ok(v) => println!("{}", lang::Pretty(&v, interp.parser().namespace())),
             Err(e) => match e {
-                lang::Error::ParserError(parser::Error::UnexpectedEof(_)) => {
-                    println!("encountered eof");
+                lang::Error::ParserError(parser::Error::UnexpectedEof(c)) => {
+                    println!("encountered eof in {:?}", c);
                     break
                 },
-                e => println!("error: {:?}", e),
+                lang::Error::ParserError(parser::Error::Empty(c)) => {
+                    println!("encountered empty production in {:?}", c);
+                    interp.parser_mut().advance();
+                    //break
+                },
+                e => {
+                    interp.parser_mut().advance();
+                    println!("error: {:?}", e);
+                },
             },
         }
     }

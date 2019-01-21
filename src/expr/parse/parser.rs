@@ -12,12 +12,14 @@ pub enum ErrorKind {
     UnexpectedEof,
     TooManyPushBacks,
     Extension,
+    Empty,
 }
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 pub enum Context {
     Element,
     Parenthesized,
+    Conjunction,
 }
 
 #[derive(Debug,Clone)]
@@ -26,7 +28,8 @@ pub enum Error {
     Unexpected{ ctx: Context, found: TokenKind },
     UnexpectedEof(Context),
     TooManyPushBacks{ incoming: Token, present: Token },
-    Extension(Option<Expr>),
+    Extension,
+    Empty(Context),
 }
 
 impl Kinded for Error {
@@ -38,7 +41,8 @@ impl Kinded for Error {
             &Error::Unexpected{..} => ErrorKind::Unexpected,
             &Error::UnexpectedEof(_) => ErrorKind::UnexpectedEof,
             &Error::TooManyPushBacks{..} => ErrorKind::TooManyPushBacks,
-            &Error::Extension(_) => ErrorKind::Extension,
+            &Error::Extension => ErrorKind::Extension,
+            &Error::Empty(_) => ErrorKind::Empty,
         }
     }
 }
@@ -90,13 +94,19 @@ impl<I: Iterator<Item=char>> Parser<I> {
         }
     }
     
-    pub fn advance(&mut self) -> Result<Token, Error> {
+    pub fn _advance(&mut self) -> Result<Token, Error> {
         Ok(mem::replace(&mut self.current, if let Some(_) = self.pushback {
             let old = mem::replace(&mut self.pushback, None);
             old.unwrap()
         } else {
             self.tzr.next_token()?
         }))
+    }
+
+    pub fn advance(&mut self) -> Result<Token, Error> {
+        let res = self._advance();
+        println!("next token: {:?}", res);
+        res
     }
 
     pub fn parse_element(&mut self) -> Result<Expr, Error> {
@@ -120,9 +130,11 @@ impl<I: Iterator<Item=char>> Parser<I> {
                     self.advance()?;
                     Ok(Expr::Not(Box::new(self.parse_element()?)))
                 } else {
-                    Err(Error::Extension(None))
+                    Err(Error::Extension)
                 }
             },
+            TokenKind::Bracket => Err(Error::Extension),
+            TokenKind::Brace => Err(Error::Extension),
             t => Err(Error::Unexpected{ ctx: Context::Element, found: t }),
         }
     }
@@ -147,16 +159,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
     }
 
     pub fn parse_expr(&mut self) -> Result<Expr, Error> {
-        match self.parse_equivs() {
-            Ok(e) => Ok(e),
-            Err(e) => match e {
-                Error::Extension(Some(x)) => {
-                    // Allow syntax extension in this particular case
-                    Ok(x)
-                },
-                _ => Err(e),
-            },
-        }
+        self.parse_equivs()
     }
 
     pub fn parse_equivs(&mut self) -> Result<Expr, Error> {
@@ -198,11 +201,19 @@ impl<I: Iterator<Item=char>> Parser<I> {
     }
 
     pub fn parse_conjunct(&mut self) -> Result<Expr, Error> {
-        let mut exprs: Vec<Expr> = vec![self.parse_element()?];
+        let mut exprs: Vec<Expr> = vec![match self.parse_element() {
+            Ok(x) => x,
+            Err(Error::Extension) => return Err(Error::Empty(Context::Conjunction)),
+            Err(e) => return Err(e),
+        }];
 
         while let Token::Op(Op::And) = self.current {
             self.advance()?;
-            exprs.push(self.parse_element()?);
+            exprs.push(match self.parse_element() {
+                Ok(x) => x,
+                Err(Error::Extension) => break,
+                Err(e) => return Err(e),
+            });
         }
 
         let len = exprs.len();

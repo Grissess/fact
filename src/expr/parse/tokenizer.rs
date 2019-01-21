@@ -194,7 +194,7 @@ impl<I: Iterator<Item=char>> Tokenizer<I> {
                     match self.next_char() {
                         None => break,
                         Some(nc) => {
-                            if c.is_digit(10) {
+                            if nc.is_digit(10) {
                                 s.push(nc);
                             } else {
                                 self.push(nc)?;
@@ -203,6 +203,7 @@ impl<I: Iterator<Item=char>> Tokenizer<I> {
                         },
                     }
                 }
+                println!("parsing as int: {:?}", s);
                 Ok(Token::Number(s.parse().map_err(Error::ParseIntError)?))
             },
             c if is_id_start(c) => {

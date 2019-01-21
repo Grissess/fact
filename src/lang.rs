@@ -96,7 +96,18 @@ impl Value {
 }
 
 #[derive(Debug)]
-pub struct Pretty<'a, 'b>(&'a Value, &'b Namespace);
+pub struct Pretty<'a, 'b>(pub &'a Value, pub &'b Namespace);
+
+impl<'a, 'b> fmt::Display for Pretty<'a, 'b> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            Value::Simple(x) => write!(f, "{}", simple::Pretty::Expr(x, self.1)),
+            Value::Rich(x) => write!(f, "{}", rich::Pretty::Expr(x, self.1)),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::NormalForm(n) => write!(f, "{:?}", n),
+        }
+    }
+}
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 pub enum ErrorKind {
@@ -217,7 +228,8 @@ impl<I: Iterator<Item=char>> Interpreter<I> {
     pub fn parse_rewrite(&mut self) -> Result<Value, Error> {
         let mut expr = self.parse_expr()?;
 
-        if let Token::Bracket(Side::Left) = self.parser.token() {
+        'outer: while let Token::Bracket(Side::Left) = self.parser.token() {
+            self.parser.advance()?;
             loop {
                 let name = self.expect_name(Context::Rewrite)?;
                 let name = self.parser.namespace_mut().map(&name);
@@ -246,11 +258,11 @@ impl<I: Iterator<Item=char>> Interpreter<I> {
 
                 if let &Token::Bracket(Side::Right) = self.parser.token() {
                     self.parser.advance()?;
-                    return Ok(expr);
+                    continue 'outer
                 }
 
                 if let &Token::Op(Op::Comma) = self.parser.token() {
-                    ()
+                    self.parser.advance()?;
                 } else {
                     return Err(Error::Unexpected{ found: self.parser.token().kind(), expected: TokenKind::Op, context: Context::Rewrite })
                 };

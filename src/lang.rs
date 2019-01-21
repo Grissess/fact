@@ -169,6 +169,7 @@ impl From<simple::Error> for Error {
 pub struct Interpreter<I: Iterator<Item=char>> {
     vars: HashMap<String, Value>,
     parser: parser::Parser<I>,
+    must_advance: bool,
 }
 
 impl<I: Iterator<Item=char>> Interpreter<I> {
@@ -176,6 +177,7 @@ impl<I: Iterator<Item=char>> Interpreter<I> {
         Interpreter {
             vars: HashMap::new(),
             parser: p,
+            must_advance: false,
         }
     }
 
@@ -184,6 +186,11 @@ impl<I: Iterator<Item=char>> Interpreter<I> {
     pub fn parser_mut(&mut self) -> &mut parser::Parser<I> { &mut self.parser }
 
     pub fn interpret(&mut self) -> Result<Value, Error> {
+        if self.must_advance {
+            self.parser.advance()?;
+            self.must_advance = false;
+        }
+
         self.parse_stmt()
     }
 
@@ -276,7 +283,7 @@ impl<I: Iterator<Item=char>> Interpreter<I> {
         let mut val = self.parse_rewrite()?;
 
         if let Token::Op(Op::Termin) = self.parser.token() {
-            self.parser.advance()?;
+            self.must_advance = true;
             Ok(val)
         } else {
             Err(Error::Unexpected{ found: self.parser.token().kind(), expected: TokenKind::Op, context: Context::Statement })

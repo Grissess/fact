@@ -5,3 +5,4 @@ authors = ["Graham Northup <grissess@nexusg.org>"]
 edition = "2018"
 
 [dependencies]
+rpds = "0.5.0"

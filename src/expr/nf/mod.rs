@@ -65,3 +65,35 @@ impl NormalForm {
         )
     }
 }
+
+#[derive(Debug,Clone)]
+pub enum Error {
+    BadKind(NormalFormKind),
+}
+
+#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+pub enum ErrorKind {
+    BadKind,
+}
+
+impl Kinded for Error {
+    type Kind = ErrorKind;
+
+    fn kind(&self) -> ErrorKind {
+        match self {
+            &Error::BadKind(_) => ErrorKind::BadKind,
+        }
+    }
+}
+ 
+#[derive(Debug,Clone)]
+pub struct CNF(pub NormalFormVec);
+
+impl CNF {
+    pub fn try_from(nf: NormalForm) -> Result<CNF, (Error, NormalForm)> {
+        match nf {
+            NormalForm::Conjunctive(v) => Ok(CNF(v)),
+            x => Err((Error::BadKind(x.kind()), x)),
+        }
+    }
+}

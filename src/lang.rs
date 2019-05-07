@@ -124,6 +124,7 @@ pub enum ErrorKind {
 pub enum Context {
     Rewrite,
     Statement,
+    External,
 }
 
 #[derive(Debug)]
@@ -162,6 +163,12 @@ impl From<parser::Error> for Error {
 impl From<simple::Error> for Error {
     fn from(e: simple::Error) -> Error {
         Error::SimpleExprError(e)
+    }
+}
+
+impl From<(Error, Value)> for Error {
+    fn from(e: (Error, Value)) -> Error {
+        e.0
     }
 }
 
@@ -237,6 +244,13 @@ impl<I: Iterator<Item=char>> Interpreter<I> {
 
         'outer: while let Token::Bracket(Side::Left) = self.parser.token() {
             self.parser.advance()?;
+            if let Token::Bracket(Side::Right) = self.parser.token() {
+                self.parser.advance()?;
+                return Ok(match expr.convert(ValueKind::Simple, Context::Rewrite)? {
+                    Value::Simple(x) => x.simplify_tauto().into(),
+                    _ => unreachable!(),
+                });
+            }
             loop {
                 let name = self.expect_name(Context::Rewrite)?;
                 let name = self.parser.namespace_mut().map(&name);

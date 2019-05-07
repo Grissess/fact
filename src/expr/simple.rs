@@ -2,6 +2,7 @@ use crate::Kinded;
 use super::parse::ns::Namespace;
 
 use std::fmt;
+use std::collections::HashMap;
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 pub enum ExprKind {
@@ -10,13 +11,21 @@ pub enum ExprKind {
     Or,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,PartialEq,Eq,Hash)]
 pub enum Atom {
     Var(usize),
     Neg(usize),
 }
 
 impl Atom {
+    pub fn binding(name: usize, value: bool) -> Atom {
+        if value {
+            Atom::Var(name)
+        } else {
+            Atom::Neg(name)
+        }
+    }
+
     pub fn name(&self) -> usize {
         match self {
             &Atom::Var(x) => x,
@@ -82,6 +91,22 @@ impl EvalResult {
             (ExprKind::Or, EvalResult::Expr(l), EvalResult::Expr(r)) => EvalResult::Expr(Expr::Or(Box::new(l), Box::new(r))),
             _ => unreachable!(),
         }
+    }
+}
+
+pub struct AtomCount(HashMap<usize, usize>);
+
+impl AtomCount {
+    pub fn num_vars(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn vars(&self) -> Vec<usize> {
+        self.0.keys().map(|&x| x).collect()
+    }
+
+    pub fn cardinality(&self, var: usize) -> usize {
+        self.0.get(&var).map(|&x| x).unwrap_or(0)
     }
 }
 
@@ -171,6 +196,24 @@ impl Expr {
             },
         }
     }
+
+    pub fn atom_count(&self) -> AtomCount {
+        let mut count: HashMap<usize, usize> = HashMap::new();
+
+        fn recur(expr: &Expr, count: &mut HashMap<usize, usize>) {
+            match expr {
+                Expr::Atom(a) => *count.entry(a.name()).or_insert(0) += 1,
+                Expr::And(l, r) | Expr::Or(l, r) => {
+                    recur(l, count);
+                    recur(r, count);
+                },
+            }
+        }
+
+        recur(&self, &mut count);
+
+        AtomCount(count)
+    }
 }
 
 impl Kinded for Expr {
@@ -195,6 +238,7 @@ impl fmt::Display for Expr {
     }
 }
 
+#[derive(Debug)]
 pub enum Pretty<'a, 'b> {
     Expr(&'a Expr, &'b Namespace),
     Atom(&'a Atom, &'b Namespace),

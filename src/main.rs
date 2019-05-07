@@ -3,6 +3,9 @@ extern crate fact;
 use fact::lang;
 use fact::expr::{rich,simple};
 use fact::expr::parse::{parser,tokenizer};
+use fact::expr::nf::tseytin::tseytin;
+use fact::expr::nf::CNF;
+use fact::solver::cdcl::{ClauseSet, self};
 use fact::io::{BytesToChars,Unwrapped};
 
 use std::io;
@@ -22,7 +25,25 @@ fn main() {
 
     loop {
         match interp.interpret() {
-            Ok(v) => println!("{}", lang::Pretty(&v, interp.parser().namespace())),
+            Ok(v) => {
+                println!("{}", lang::Pretty(&v, interp.parser().namespace()));
+                if let Ok(sv) = v.convert(lang::ValueKind::Simple, lang::Context::External) {
+                    match sv {
+                        lang::Value::Simple(simp) => {
+                            println!("{}", simple::Pretty::Expr(&simp, interp.parser().namespace()));
+                            if let Ok(cnf) = CNF::try_from(tseytin(&simp, interp.parser_mut().namespace_mut())) {
+                                println!("{:?}", cnf);
+                                let cset = ClauseSet::from(&cnf);
+                                match cset.solve() {
+                                    Some(ta) => println!("sat: {}", cdcl::Pretty(&ta, interp.parser().namespace())),
+                                    None => println!("unsat"),
+                                }
+                            }
+                        },
+                        _ => unreachable!(),
+                    }
+                }
+            },
             Err(e) => match e {
                 lang::Error::ParserError(parser::Error::UnexpectedEof(c)) => {
                     println!("encountered eof in {:?}", c);

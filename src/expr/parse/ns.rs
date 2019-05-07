@@ -5,7 +5,6 @@ use std::collections::hash_map::Entry;
 pub struct Namespace {
     map: HashMap<String, usize>,
     rev: Vec<Option<String>>,
-    next: usize,
 }
 
 impl Namespace {
@@ -13,17 +12,17 @@ impl Namespace {
         Namespace {
             map: HashMap::new(),
             rev: Vec::new(),
-            next: 0usize,
         }
     }
 
+    pub fn next(&self) -> usize { self.rev.len() }
+
     pub fn map<'s, 'k, K>(&'s mut self, k: &'k K) -> usize where String: From<&'k K>, K: ?Sized {
         let s = String::from(k);
+        let n = self.next();
         match self.map.entry(s) {
             Entry::Occupied(o) => *o.get(),
             Entry::Vacant(v) => {
-                let n = self.next;
-                self.next += 1;
                 self.rev.push(Some(String::from(k)));
                 v.insert(n);
                 n
@@ -32,9 +31,8 @@ impl Namespace {
     }
 
     pub fn alloc(&mut self) -> usize {
-        let s = self.next;
+        let s = self.next();
         self.rev.push(None);
-        self.next += 1;
         s
     }
 

@@ -105,7 +105,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
 
     pub fn advance(&mut self) -> Result<Token, Error> {
         let res = self._advance();
-        println!("next token: {:?}", res);
+        // println!("next token: {:?}", res);
         res
     }
 

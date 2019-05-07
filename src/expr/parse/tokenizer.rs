@@ -203,7 +203,6 @@ impl<I: Iterator<Item=char>> Tokenizer<I> {
                         },
                     }
                 }
-                println!("parsing as int: {:?}", s);
                 Ok(Token::Number(s.parse().map_err(Error::ParseIntError)?))
             },
             c if is_id_start(c) => {
